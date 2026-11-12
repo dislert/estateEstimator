@@ -37,10 +37,12 @@ services:
     volumes:
       - minio_data:/data
     healthcheck:
-      test: [ "CMD", "mc", "ready", "local" ]
-      interval: 5s
+      test: [ "CMD-SHELL", "wget -q --spider http://localhost:9000/minio/health/live || exit 1" ]
+      interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 5
+      start_period: 10s
+
 
 volumes:
   postgres_data:
