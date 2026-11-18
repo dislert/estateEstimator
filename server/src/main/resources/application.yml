@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: estate-estimator-server
+  config:
+    import:
+      - optional:file:../.env[.properties]
+      - optional:file:./.env[.properties]
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/${POSTGRES_DB}}
+    username: ${POSTGRES_USERNAME}
+    password: ${POSTGRES_PASSWORD}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+app:
+  s3:
+    endpoint: ${S3_ENDPOINT:http://localhost:9000}
+    region: ${S3_REGION:us-east-1}
+    bucket: ${S3_BUCKET:photos}
+    access-key: ${S3_ACCESS_KEY:${MINIO_ROOT_USER}}
+    secret-key: ${S3_SECRET_KEY:${MINIO_ROOT_PASSWORD}}
+    create-bucket-if-missing: ${S3_CREATE_BUCKET:false}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

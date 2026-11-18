@@ -1,0 +1,8 @@
+# Профиль dev: к схеме добавляются тестовые данные (db/dev/V100__test_data.sql)
+spring:
+  flyway:
+    locations: classpath:db/migration,classpath:db/dev
+
+app:
+  s3:
+    create-bucket-if-missing: true
