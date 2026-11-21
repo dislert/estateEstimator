@@ -1,0 +1,332 @@
+# OpenAPI-спецификация эндпоинтов авторизации estateEstimator.
+#
+# Назначение: контракт для параллельной разработки клиентской части.
+# Статус: НА СОГЛАСОВАНИИ с фронтенд-разработчиком (после утверждения изменения — только по договорённости).
+#
+# Реализация: server/src/main/java/com/example/estateestimator/auth/
+# Проверить спеку можно в https://editor.swagger.io (File -> Import file).
+#
+# Дополнительные условия, не выражаемые схемой:
+#  * Rate limiting (защита от подбора учётных данных), лимиты на IP клиента:
+#      POST /api/v1/auth/login    — 5 запросов/мин (RATE_LIMIT_LOGIN_PER_MINUTE)
+#      POST /api/v1/auth/register — 10 запросов/мин (RATE_LIMIT_REGISTER_PER_MINUTE)
+#    При превышении — 429 и заголовок Retry-After (секунды до конца окна).
+#  * Пароль хранится только в виде BCrypt-хеша; в ответах API пароль никогда не возвращается.
+#  * Access-токен — JWT (HS256), TTL по умолчанию 60 минут (см. expiresIn в ответе).
+#    Токен передаётся в заголовке: Authorization: Bearer <accessToken>.
+openapi: 3.0.3
+info:
+  title: estateEstimator API — авторизация
+  version: 0.1.0
+  description: |
+    Регистрация, вход (выдача JWT) и проверка токена на защищённом маршруте.
+    Базовый путь всех эндпоинтов: `/api/v1`.
+servers:
+  - url: http://localhost:8080
+    description: Локальная разработка
+tags:
+  - name: auth
+    description: Регистрация и аутентификация (публичные, с rate limiting)
+  - name: users
+    description: Защищённые маршруты (требуется Bearer JWT)
+
+paths:
+  /api/v1/auth/register:
+    post:
+      tags: [auth]
+      summary: Регистрация пользователя
+      description: |
+        Создаёт пользователя и сразу возвращает JWT (отдельный вход не нужен).
+        Поле `role` необязательно: `buyer` (по умолчанию) или `owner`.
+        Роль `admin` самостоятельно назначить нельзя.
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Пользователь создан, токен выдан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Ошибка валидации полей
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                timestamp: '2026-11-18T15:30:00+03:00'
+                status: 400
+                error: validation_error
+                message: Ошибка валидации запроса
+                path: /api/v1/auth/register
+                fieldErrors:
+                  password: Пароль должен быть от 8 до 72 символов
+        '409':
+          description: Email уже зарегистрирован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                timestamp: '2026-11-18T15:30:00+03:00'
+                status: 409
+                error: email_already_used
+                message: Пользователь с email 'ivan@example.com' уже зарегистрирован
+                path: /api/v1/auth/register
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /api/v1/auth/login:
+    post:
+      tags: [auth]
+      summary: Вход (аутентификация)
+      description: Проверяет email и пароль, возвращает JWT и профиль пользователя.
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Успешный вход, токен выдан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Ошибка валидации полей
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '401':
+          description: Неверный email или пароль (единый ответ, не раскрывает существование email)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                timestamp: '2026-11-18T15:30:00+03:00'
+                status: 401
+                error: invalid_credentials
+                message: Неверный email или пароль
+                path: /api/v1/auth/login
+        '403':
+          description: Учётная запись заблокирована
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                timestamp: '2026-11-18T15:30:00+03:00'
+                status: 403
+                error: account_blocked
+                message: Учётная запись заблокирована
+                path: /api/v1/auth/login
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /api/v1/users/me:
+    get:
+      tags: [users]
+      summary: Профиль текущего пользователя
+      description: |
+        Защищённый маршрут для проверки токена: требуется `Authorization: Bearer <accessToken>`.
+        Данные читаются из БД (актуальны после блокировки/изменения профиля).
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Профиль пользователя
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDto'
+        '401':
+          description: Токен отсутствует, невалиден или просрочен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                timestamp: '2026-11-18T15:30:00+03:00'
+                status: 401
+                error: unauthorized
+                message: 'Требуется аутентификация: передайте заголовок Authorization: Bearer <token>'
+                path: /api/v1/users/me
+        '403':
+          description: Учётная запись заблокирована
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    TooManyRequests:
+      description: Превышен лимит запросов (rate limiting на IP)
+      headers:
+        Retry-After:
+          description: Через сколько секунд можно повторить запрос
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          example:
+            timestamp: '2026-11-18T15:30:00+03:00'
+            status: 429
+            error: too_many_requests
+            message: Превышен лимит запросов, повторите через 42 с
+            path: /api/v1/auth/login
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [email, password, firstName, lastName]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          example: ivan@example.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 72
+          example: S3cure!pass
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Иван
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Петров
+        gender:
+          type: string
+          enum: [male, female]
+          example: male
+        role:
+          type: string
+          enum: [buyer, owner]
+          default: buyer
+          example: owner
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: ivan@example.com
+        password:
+          type: string
+          format: password
+          example: S3cure!pass
+
+    AuthResponse:
+      type: object
+      required: [accessToken, tokenType, expiresIn, user]
+      properties:
+        accessToken:
+          type: string
+          description: JWT (HS256). Передавать в Authorization: Bearer <token>
+          example: eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3Zj...
+        tokenType:
+          type: string
+          enum: [Bearer]
+          example: Bearer
+        expiresIn:
+          type: integer
+          format: int64
+          description: Время жизни токена в секундах
+          example: 3600
+        user:
+          $ref: '#/components/schemas/UserDto'
+
+    UserDto:
+      type: object
+      required: [id, email, firstName, lastName, roles, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 7f1c2a3e-9b4d-4c5a-8e6f-1a2b3c4d5e6f
+        email:
+          type: string
+          format: email
+          example: ivan@example.com
+        firstName:
+          type: string
+          example: Иван
+        lastName:
+          type: string
+          example: Петров
+        gender:
+          type: string
+          nullable: true
+          enum: [male, female, null]
+          example: male
+        avatarUrl:
+          type: string
+          nullable: true
+          example: null
+        roles:
+          type: array
+          items:
+            type: string
+            enum: [buyer, owner, admin]
+          example: [owner]
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-11-18T15:30:00'
+
+    ApiError:
+      type: object
+      required: [timestamp, status, error, message, path]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+          example: 400
+        error:
+          type: string
+          description: |
+            Машиночитаемый код: validation_error | malformed_request | invalid_credentials |
+            account_blocked | email_already_used | unauthorized | forbidden | too_many_requests
+          example: validation_error
+        message:
+          type: string
+          description: Человекочитаемое описание (ru)
+        path:
+          type: string
+        fieldErrors:
+          type: object
+          description: Присутствует только при error=validation_error
+          additionalProperties:
+            type: string
