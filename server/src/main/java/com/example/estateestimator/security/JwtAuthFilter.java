@@ -27,9 +27,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final JwtService jwtService;
+    private final TokenRevocationService tokenRevocationService;
 
-    public JwtAuthFilter(JwtService jwtService) {
+    public JwtAuthFilter(JwtService jwtService, TokenRevocationService tokenRevocationService) {
         this.jwtService = jwtService;
+        this.tokenRevocationService = tokenRevocationService;
     }
 
     @Override
@@ -42,17 +44,22 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             try {
                 Claims claims = jwtService.parse(token).getPayload();
 
-                List<String> roles = claims.get("roles", List.class);
-                var authorities = roles == null ? List.<SimpleGrantedAuthority>of()
-                        : roles.stream()
-                                .map(role -> new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()))
-                                .toList();
+                // Токен с отсутствующим/отозванным jti не должен аутентифицировать запрос.
+                if (tokenRevocationService.isRevoked(claims.getId())) {
+                    SecurityContextHolder.clearContext();
+                } else {
+                    List<String> roles = claims.get("roles", List.class);
+                    var authorities = roles == null ? List.<SimpleGrantedAuthority>of()
+                            : roles.stream()
+                                    .map(role -> new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()))
+                                    .toList();
 
-                var principal = new AuthUser(UUID.fromString(claims.getSubject()),
-                        claims.get("email", String.class));
-                var auth = new UsernamePasswordAuthenticationToken(principal, null, authorities);
-                auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(auth);
+                    var principal = new AuthUser(UUID.fromString(claims.getSubject()),
+                            claims.get("email", String.class));
+                    var auth = new UsernamePasswordAuthenticationToken(principal, null, authorities);
+                    auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+                }
             } catch (JwtException | IllegalArgumentException e) {
                 // Невалидный/просроченный токен: запрос остаётся анонимным,
                 // доступ к защищённому маршруту отклонит Spring Security с 401.

@@ -20,10 +20,7 @@ public class UserService {
         this.users = users;
     }
 
-    /**
-     * Профиль текущего пользователя. Данные читаются из БД, а не из токена:
-     * так они актуальны после блокировки или изменения профиля.
-     */
+
     @Transactional(readOnly = true)
     public UserDto getCurrentUser(UUID userId) {
         User user = users.findByIdWithRoles(userId)

@@ -9,7 +9,6 @@ import com.example.estateestimator.security.AuthUser;
 import com.example.estateestimator.user.dto.UserDto;
 import com.example.estateestimator.user.service.UserService;
 
-/** Защищённые маршруты: доступ только с валидным JWT (Authorization: Bearer <token>). */
 @RestController
 @RequestMapping("/api/v1/users")
 public class UserController {
@@ -20,7 +19,6 @@ public class UserController {
         this.userService = userService;
     }
 
-    /** Профиль текущего пользователя. */
     @GetMapping("/me")
     public UserDto me(@AuthenticationPrincipal AuthUser principal) {
         return userService.getCurrentUser(principal.id());

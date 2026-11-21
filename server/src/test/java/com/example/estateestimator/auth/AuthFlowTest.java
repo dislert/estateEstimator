@@ -1,5 +1,6 @@
 package com.example.estateestimator.auth;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -21,6 +22,10 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
+
+import com.example.estateestimator.auth.repository.AuthRepository;
+import com.example.estateestimator.user.entity.User;
+import com.example.estateestimator.user.repository.RoleRepository;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -61,6 +66,12 @@ class AuthFlowTest {
 
     @Autowired
     ObjectMapper objectMapper;
+
+    @Autowired
+    AuthRepository authRepository;
+
+    @Autowired
+    RoleRepository roleRepository;
 
     private String uniqueEmail() {
         return "user-" + UUID.randomUUID() + "@example.com";
@@ -190,5 +201,56 @@ class AuthFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value(email))
                 .andExpect(jsonPath("$.roles[0]").value("owner"));
+    }
+
+    @Test
+    void currentUserReturnsAllCombinedRoles() throws Exception {
+        String email = uniqueEmail();
+        String token = accessToken(register(email, "password123"));
+
+        // Одна учётная запись может совмещать несколько ролей: проверяем, что /me отдаёт весь набор
+        User user = authRepository.findByEmailWithRoles(email).orElseThrow();
+        user.addRole(roleRepository.findByCode("buyer").orElseThrow());
+        user.addRole(roleRepository.findByCode("admin").orElseThrow());
+        authRepository.saveAndFlush(user);
+
+        mockMvc.perform(get("/api/v1/users/me")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.roles", containsInAnyOrder("buyer", "owner", "admin")));
+    }
+
+    @Test
+    void logoutRevokesAccessToken() throws Exception {
+        String email = uniqueEmail();
+        String token = accessToken(register(email, "password123"));
+
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/users/me")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
+
+        // Новый вход выдаёт новый токен, который не затронут отзывом предыдущего
+        MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"%s","password":"password123"}
+                                """.formatted(email)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        mockMvc.perform(get("/api/v1/users/me")
+                        .header("Authorization", "Bearer " + accessToken(loginResult)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void logoutWithoutTokenReturns401() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/logout"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error").value("unauthorized"));
     }
 }

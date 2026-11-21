@@ -31,7 +31,8 @@ DECLARE
 BEGIN
     SELECT string_agg(t, ', ') INTO missing
     FROM unnest(ARRAY['roles','users','user_roles','properties','locations','photos',
-                      'data_sources','hud_market_data','market_history','chats','messages','applications']) AS t
+                      'data_sources','hud_market_data','market_history','chats','messages','applications',
+                      'revoked_tokens']) AS t
     WHERE to_regclass('public.' || t) IS NULL;
     IF missing IS NOT NULL THEN
         RAISE EXCEPTION 'Нет таблиц: %', missing;

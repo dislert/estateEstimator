@@ -2,9 +2,11 @@ package com.example.estateestimator.auth.controller;
 
 import jakarta.validation.Valid;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -14,9 +16,6 @@ import com.example.estateestimator.auth.dto.LoginRequest;
 import com.example.estateestimator.auth.dto.RegisterRequest;
 import com.example.estateestimator.auth.service.AuthService;
 
-/**
- * Эндпоинты авторизации. Спецификация для фронтенда: docs/openapi-auth.yaml.
- */
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {
@@ -36,5 +35,11 @@ public class AuthController {
     @PostMapping("/login")
     public AuthResponse login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request);
+    }
+
+    @PostMapping("/logout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void logout(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader) {
+        authService.logout(authorizationHeader);
     }
 }

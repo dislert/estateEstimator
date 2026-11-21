@@ -14,6 +14,8 @@
 #  * Пароль хранится только в виде BCrypt-хеша; в ответах API пароль никогда не возвращается.
 #  * Access-токен — JWT (HS256), TTL по умолчанию 60 минут (см. expiresIn в ответе).
 #    Токен передаётся в заголовке: Authorization: Bearer <accessToken>.
+#  * POST /api/v1/auth/logout отзывает текущий токен (jti) до истечения его срока;
+#    после logout этот токен не принимается защищёнными маршрутами.
 openapi: 3.0.3
 info:
   title: estateEstimator API — авторизация
@@ -133,6 +135,32 @@ paths:
                 path: /api/v1/auth/login
         '429':
           $ref: '#/components/responses/TooManyRequests'
+
+  /api/v1/auth/logout:
+    post:
+      tags: [auth]
+      summary: Выход из системы
+      description: |
+        Отзывает текущий access-токен. После успешного вызова токен больше не принимается
+        защищёнными маршрутами. Клиент также должен удалить его из локального хранилища.
+      operationId: logout
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Сессия завершена, токен отозван
+        '401':
+          description: Токен отсутствует, невалиден или уже отозван
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                timestamp: '2026-11-18T15:30:00+03:00'
+                status: 401
+                error: unauthorized
+                message: 'Требуется аутентификация: передайте заголовок Authorization: Bearer <token>'
+                path: /api/v1/auth/logout
 
   /api/v1/users/me:
     get:
@@ -295,6 +323,9 @@ components:
           example: null
         roles:
           type: array
+          description: |
+            Все роли учётной записи. Одна учётная запись может совмещать несколько ролей —
+            API возвращает полный набор для построения разделов личного кабинета.
           items:
             type: string
             enum: [buyer, owner, admin]

@@ -16,6 +16,7 @@ import com.example.estateestimator.auth.dto.RegisterRequest;
 import com.example.estateestimator.auth.exception.EmailAlreadyUsedException;
 import com.example.estateestimator.auth.repository.AuthRepository;
 import com.example.estateestimator.security.JwtService;
+import com.example.estateestimator.security.TokenRevocationService;
 import com.example.estateestimator.user.dto.UserDto;
 import com.example.estateestimator.user.entity.Role;
 import com.example.estateestimator.user.entity.User;
@@ -26,20 +27,24 @@ import com.example.estateestimator.user.repository.RoleRepository;
 public class AuthService {
 
     private static final String DEFAULT_ROLE = "buyer";
+    private static final String BEARER_PREFIX = "Bearer ";
 
     private final AuthRepository users;
     private final RoleRepository roles;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final TokenRevocationService tokenRevocationService;
     /** Хеш для выравнивания времени ответа, когда пользователь не найден (защита от перебора email по таймингу). */
     private final String dummyHash;
 
     public AuthService(AuthRepository users, RoleRepository roles,
-                       PasswordEncoder passwordEncoder, JwtService jwtService) {
+                       PasswordEncoder passwordEncoder, JwtService jwtService,
+                       TokenRevocationService tokenRevocationService) {
         this.users = users;
         this.roles = roles;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.tokenRevocationService = tokenRevocationService;
         this.dummyHash = passwordEncoder.encode("dummy-password-for-timing-equalization");
     }
 
@@ -85,6 +90,14 @@ public class AuthService {
             throw new AccountBlockedException();
         }
         return toAuthResponse(user);
+    }
+
+    /** Отзывает текущий access-токен: после logout он больше не принимается JwtAuthFilter. */
+    public void logout(String authorizationHeader) {
+        if (authorizationHeader == null || !authorizationHeader.startsWith(BEARER_PREFIX)) {
+            throw new BadCredentialsException("Требуется заголовок Authorization: Bearer <token>");
+        }
+        tokenRevocationService.revoke(authorizationHeader.substring(BEARER_PREFIX.length()).trim());
     }
 
     private AuthResponse toAuthResponse(User user) {

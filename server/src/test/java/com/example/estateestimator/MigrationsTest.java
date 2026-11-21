@@ -72,10 +72,11 @@ class MigrationsTest {
         f.clean();
         MigrateResult result = f.migrate();
 
-        assertEquals(2, result.migrationsExecuted);
+        assertEquals(3, result.migrationsExecuted);
         assertEquals(3, count("roles"));
         assertEquals(4, count("data_sources"));
         assertEquals(0, count("users"), "в prod-миграциях тестовых пользователей быть не должно");
+        assertEquals(0, count("revoked_tokens"));
         runVerifyScript();
     }
 
@@ -97,7 +98,7 @@ class MigrationsTest {
         f.clean();
         MigrateResult result = f.migrate();
 
-        assertEquals(3, result.migrationsExecuted);
+        assertEquals(4, result.migrationsExecuted);
         assertEquals(3, count("users"));
         assertEquals(3, count("properties"));
         assertEquals(3, count("locations"));

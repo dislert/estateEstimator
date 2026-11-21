@@ -36,6 +36,7 @@ public class JwtService {
     public String issueToken(UUID userId, String email, List<String> roles) {
         Instant now = Instant.now();
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .subject(userId.toString())
                 .claim("email", email)
                 .claim("roles", roles)
