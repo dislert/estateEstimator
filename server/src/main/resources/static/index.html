@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>EstateEstimator</title>
+        <link rel="stylesheet" href="css/style.css">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.1/dist/maplibre-gl.css">
+    </head>
+    <body>
+        <header>
+            <a class="brand" href="#catalog" aria-label="EstateEstimator home">
+                <img
+                    class="brand-logo"
+                    src="assets/logo.png"
+                    alt="EstateEstimator logo"
+                >
+            </a>
+            <nav id="nav">
+                <a href="#catalog">Explore</a>
+                <a href="#compare">Compare</a>
+                <a href="#requests">Requests</a>
+                <a href="#messages">Messages</a>
+            </nav>
+            <div class="header-actions">
+                <a class="btn secondary" href="#login" id="account">Sign in</a>
+                <a class="btn" href="#create">List property</a>
+            </div>
+        </header>
+        <main id="app"></main>
+        <footer>
+            EstateEstimator · Virginia, USA
+            <span>Investment estimates are indicative, not guaranteed returns.</span>
+        </footer>
+        <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script>
+        <script type="module" src="js/app.js"></script>
+    </body>
+</html>
